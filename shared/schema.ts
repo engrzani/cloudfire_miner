@@ -9,6 +9,10 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   balance: real("balance").notNull().default(0),
   totalMiners: integer("total_miners").notNull().default(0),
+  isAdmin: boolean("is_admin").notNull().default(false),
+  referralCode: varchar("referral_code").unique(),
+  referredById: varchar("referred_by_id"),
+  totalReferralEarnings: real("total_referral_earnings").notNull().default(0),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -25,6 +29,7 @@ export const signupSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string(),
+  referralCode: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
@@ -96,6 +101,45 @@ export const withdrawalFormSchema = z.object({
 
 export type InsertWithdrawal = z.infer<typeof insertWithdrawalSchema>;
 export type WithdrawalRequest = typeof withdrawalRequests.$inferSelect;
+
+export const depositRequests = pgTable("deposit_requests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  amount: real("amount").notNull(),
+  transactionId: text("transaction_id").notNull(),
+  screenshotUrl: text("screenshot_url"),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  reviewedBy: varchar("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+});
+
+export const insertDepositSchema = createInsertSchema(depositRequests).pick({
+  userId: true,
+  amount: true,
+  transactionId: true,
+  screenshotUrl: true,
+});
+
+export const depositFormSchema = z.object({
+  amount: z.number().min(100, "Minimum deposit is 100 PKR"),
+  transactionId: z.string().min(5, "Enter a valid transaction ID"),
+});
+
+export type InsertDeposit = z.infer<typeof insertDepositSchema>;
+export type DepositRequest = typeof depositRequests.$inferSelect;
+
+export const referralCommissions = pgTable("referral_commissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  fromUserId: varchar("from_user_id").notNull(),
+  depositId: varchar("deposit_id").notNull(),
+  level: integer("level").notNull(),
+  amount: real("amount").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type ReferralCommission = typeof referralCommissions.$inferSelect;
 
 export const MINING_MACHINES_DATA: Omit<MiningMachine, "">[] = [
   { id: "m1", name: "M1", level: 1, price: 1500, dailyProfit: 80 },

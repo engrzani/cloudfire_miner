@@ -1,17 +1,52 @@
-import type { Express } from "express";
+import express, { type Express, type Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { MINING_MACHINES_DATA, insertUserSchema } from "@shared/schema";
+import multer, { FileFilterCallback } from "multer";
+import path from "path";
+import fs from "fs";
+
+const uploadDir = "./uploads";
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: uploadDir,
+    filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
+      const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(7)}${path.extname(file.originalname)}`;
+      cb(null, uniqueName);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
+    const allowed = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image files allowed"));
+    }
+  },
+});
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  app.use("/uploads", (req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    next();
+  }, express.static(uploadDir));
   
-  // Auth: Signup
+  // Auth: Signup with referral support
   app.post("/api/auth/signup", async (req, res) => {
     try {
-      const parsed = insertUserSchema.safeParse(req.body);
+      const { username, password, referralCode } = req.body;
+      
+      const parsed = insertUserSchema.safeParse({ username, password });
       if (!parsed.success) {
         return res.status(400).json({ message: parsed.error.errors[0].message });
       }
@@ -21,7 +56,15 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Username already exists" });
       }
 
-      const user = await storage.createUser(parsed.data);
+      let referredById: string | undefined;
+      if (referralCode) {
+        const referrer = await storage.getUserByReferralCode(referralCode);
+        if (referrer) {
+          referredById = referrer.id;
+        }
+      }
+
+      const user = await storage.createUser(parsed.data, referredById);
       const { password: _, ...safeUser } = user;
       res.json(safeUser);
     } catch (error: any) {
@@ -53,6 +96,38 @@ export async function registerRoutes(
   app.get("/api/users/:id", async (req, res) => {
     try {
       const user = await storage.getUser(req.params.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      const { password: _, ...safeUser } = user;
+      res.json(safeUser);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
+  // Admin: Get all users
+  app.get("/api/admin/users", async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      const safeUsers = users.map(u => {
+        const { password: _, ...safe } = u;
+        return safe;
+      });
+      res.json(safeUsers);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
+  // Admin: Update user balance
+  app.patch("/api/admin/users/:id/balance", async (req, res) => {
+    try {
+      const { balance } = req.body;
+      if (typeof balance !== "number") {
+        return res.status(400).json({ message: "Balance must be a number" });
+      }
+      const user = await storage.updateUserBalance(req.params.id, balance);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -114,9 +189,8 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Mining session not complete" });
       }
 
-      // Calculate reward based on owned machines
       const userMachines = await storage.getUserMachines(userId);
-      let dailyReward = 10; // Base reward
+      let dailyReward = 10;
       
       for (const um of userMachines) {
         const machine = MINING_MACHINES_DATA.find(m => m.id === um.machineId);
@@ -125,13 +199,11 @@ export async function registerRoutes(
         }
       }
 
-      // Update user balance
       const user = await storage.getUser(userId);
       if (user) {
         await storage.updateUserBalance(userId, user.balance + dailyReward);
       }
 
-      // Mark session as claimed
       await storage.claimMiningSession(session.id);
 
       res.json({ reward: dailyReward, claimed: true });
@@ -172,11 +244,29 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Insufficient balance" });
       }
 
-      // Deduct balance and add machine
       const newBalance = user.balance - machine.price;
       await storage.updateUserBalance(userId, newBalance);
       await storage.updateUserMiners(userId, user.totalMiners + 1);
       await storage.addUserMachine({ userId, machineId });
+
+      // Process referral commissions on machine rental (investment)
+      if (user.referredById) {
+        const commission1 = machine.price * 0.10;
+        const referrer1 = await storage.getUser(user.referredById);
+        if (referrer1) {
+          await storage.updateUserBalance(referrer1.id, referrer1.balance + commission1);
+          await storage.updateUserReferralEarnings(referrer1.id, commission1);
+
+          if (referrer1.referredById) {
+            const referrer2 = await storage.getUser(referrer1.referredById);
+            if (referrer2) {
+              const commission2 = machine.price * 0.04;
+              await storage.updateUserBalance(referrer2.id, referrer2.balance + commission2);
+              await storage.updateUserReferralEarnings(referrer2.id, commission2);
+            }
+          }
+        }
+      }
 
       const updatedUser = await storage.getUser(userId);
       const { password: _, ...safeUser } = updatedUser!;
@@ -218,13 +308,166 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Insufficient balance" });
       }
 
-      // Deduct balance
       await storage.updateUserBalance(userId, user.balance - amount);
-
-      // Create withdrawal request
       const withdrawal = await storage.createWithdrawal(userId, amount, accountNumber);
 
       res.json(withdrawal);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
+  // Admin: Get all withdrawals
+  app.get("/api/admin/withdrawals", async (req, res) => {
+    try {
+      const withdrawals = await storage.getAllWithdrawals();
+      res.json(withdrawals);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
+  // Admin: Update withdrawal status
+  app.patch("/api/admin/withdrawals/:id", async (req, res) => {
+    try {
+      const { status } = req.body;
+      if (!["approved", "rejected", "pending"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      const withdrawal = await storage.updateWithdrawalStatus(req.params.id, status);
+      if (!withdrawal) {
+        return res.status(404).json({ message: "Withdrawal not found" });
+      }
+      res.json(withdrawal);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
+  // Deposits: Upload screenshot
+  app.post("/api/uploads/screenshot", upload.single("screenshot"), async (req: Request, res) => {
+    try {
+      const file = req.file as Express.Multer.File | undefined;
+      if (!file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      const url = `/uploads/${file.filename}`;
+      res.json({ url });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Upload failed" });
+    }
+  });
+
+  // Deposits: Submit deposit request
+  app.post("/api/deposits/request", async (req, res) => {
+    try {
+      const { userId, amount, transactionId, screenshotUrl } = req.body;
+      if (!userId || !amount || !transactionId) {
+        return res.status(400).json({ message: "All fields required" });
+      }
+
+      const deposit = await storage.createDeposit(userId, amount, transactionId, screenshotUrl);
+      res.json(deposit);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
+  // Deposits: Get user's deposits
+  app.get("/api/deposits/:userId", async (req, res) => {
+    try {
+      const deposits = await storage.getUserDeposits(req.params.userId);
+      res.json(deposits);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
+  // Admin: Get all deposits
+  app.get("/api/admin/deposits", async (req, res) => {
+    try {
+      const deposits = await storage.getAllDeposits();
+      res.json(deposits);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
+  // Admin: Approve/reject deposit
+  app.patch("/api/admin/deposits/:id", async (req, res) => {
+    try {
+      const { status, adminId } = req.body;
+      if (!["approved", "rejected", "pending"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+
+      const deposits = await storage.getAllDeposits();
+      const deposit = deposits.find(d => d.id === req.params.id);
+      if (!deposit) {
+        return res.status(404).json({ message: "Deposit not found" });
+      }
+
+      if (status === "approved" && deposit.status !== "approved") {
+        const user = await storage.getUser(deposit.userId);
+        if (user) {
+          await storage.updateUserBalance(user.id, user.balance + deposit.amount);
+          
+          // Process referral commissions on deposit approval
+          if (user.referredById) {
+            const commission1 = deposit.amount * 0.10;
+            const referrer1 = await storage.getUser(user.referredById);
+            if (referrer1) {
+              await storage.updateUserBalance(referrer1.id, referrer1.balance + commission1);
+              await storage.updateUserReferralEarnings(referrer1.id, commission1);
+              await storage.createReferralCommission(referrer1.id, user.id, deposit.id, 1, commission1);
+
+              if (referrer1.referredById) {
+                const referrer2 = await storage.getUser(referrer1.referredById);
+                if (referrer2) {
+                  const commission2 = deposit.amount * 0.04;
+                  await storage.updateUserBalance(referrer2.id, referrer2.balance + commission2);
+                  await storage.updateUserReferralEarnings(referrer2.id, commission2);
+                  await storage.createReferralCommission(referrer2.id, user.id, deposit.id, 2, commission2);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      const updatedDeposit = await storage.updateDepositStatus(req.params.id, status, adminId || "admin");
+      res.json(updatedDeposit);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
+  // Referrals: Get user's referrals
+  app.get("/api/referrals/:userId", async (req, res) => {
+    try {
+      const level1 = await storage.getReferrals(req.params.userId);
+      const level2 = await storage.getLevel2Referrals(req.params.userId);
+      
+      const safeLevel1 = level1.map(u => {
+        const { password: _, ...safe } = u;
+        return safe;
+      });
+      const safeLevel2 = level2.map(u => {
+        const { password: _, ...safe } = u;
+        return safe;
+      });
+
+      res.json({ level1: safeLevel1, level2: safeLevel2 });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
+  // Referrals: Get user's commissions
+  app.get("/api/referrals/:userId/commissions", async (req, res) => {
+    try {
+      const commissions = await storage.getUserCommissions(req.params.userId);
+      res.json(commissions);
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Server error" });
     }

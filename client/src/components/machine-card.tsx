@@ -1,7 +1,31 @@
-import { Lock, TrendingUp, Cpu } from "lucide-react";
+import { Lock, TrendingUp } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { MiningMachine } from "@shared/schema";
+
+import m1Image from "@assets/generated_images/basic_m1_mining_machine.png";
+import m2Image from "@assets/generated_images/m2_dual_gpu_mining_rig.png";
+import m3Image from "@assets/generated_images/m3_triple_gpu_miner.png";
+import m4Image from "@assets/generated_images/m4_quad_gpu_station.png";
+import m5Image from "@assets/generated_images/m5_enterprise_mining_rig.png";
+import m6Image from "@assets/generated_images/m6_server_rack_miner.png";
+import m7Image from "@assets/generated_images/m7_mining_supercomputer.png";
+import m8Image from "@assets/generated_images/m8_mining_farm_module.png";
+import m9Image from "@assets/generated_images/m9_elite_mining_array.png";
+import m10Image from "@assets/generated_images/m10_quantum_supernode.png";
+
+const machineImages: Record<string, string> = {
+  m1: m1Image,
+  m2: m2Image,
+  m3: m3Image,
+  m4: m4Image,
+  m5: m5Image,
+  m6: m6Image,
+  m7: m7Image,
+  m8: m8Image,
+  m9: m9Image,
+  m10: m10Image,
+};
 
 interface MachineCardProps {
   machine: MiningMachine;
@@ -37,22 +61,11 @@ export function MachineCard({
       data-testid={`card-machine-${machine.id}`}
     >
       <div className="flex items-center gap-4">
-        <div
-          className={`
-            w-12 h-12 md:w-14 md:h-14 rounded-lg flex items-center justify-center
-            ${
-              isHighTier
-                ? "bg-gradient-to-br from-amber-500 to-amber-700"
-                : isMidTier
-                ? "bg-gradient-to-br from-blue-400 to-amber-500"
-                : "bg-gradient-to-br from-blue-500 to-blue-700"
-            }
-          `}
-        >
-          <Cpu
-            className={`w-6 h-6 md:w-7 md:h-7 text-white ${
-              isHighTier ? "animate-spin-slow" : ""
-            }`}
+        <div className="w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden flex-shrink-0 bg-black/20">
+          <img
+            src={machineImages[machine.id]}
+            alt={machine.name}
+            className="w-full h-full object-cover"
           />
         </div>
 

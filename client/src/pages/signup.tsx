@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { Link, useLocation, useSearch } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Flame, Loader2 } from "lucide-react";
+import { Flame, Loader2, Gift } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,15 @@ export default function Signup() {
   const { login } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [referralCode, setReferralCode] = useState<string>("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (ref) {
+      setReferralCode(ref);
+    }
+  }, []);
 
   const form = useForm<SignupFormData>({
     resolver: zodResolver(signupSchema),
@@ -34,8 +43,15 @@ export default function Signup() {
       username: "",
       password: "",
       confirmPassword: "",
+      referralCode: "",
     },
   });
+
+  useEffect(() => {
+    if (referralCode) {
+      form.setValue("referralCode", referralCode);
+    }
+  }, [referralCode, form]);
 
   const onSubmit = async (data: SignupFormData) => {
     setIsLoading(true);
@@ -43,6 +59,7 @@ export default function Signup() {
       const res = await apiRequest("POST", "/api/auth/signup", {
         username: data.username,
         password: data.password,
+        referralCode: data.referralCode || referralCode || undefined,
       });
       const user = await res.json();
       login(user);
@@ -135,6 +152,34 @@ export default function Signup() {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="referralCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Gift className="w-4 h-4 text-green-400" />
+                      Referral Code (Optional)
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter referral code"
+                        className="bg-background/50"
+                        data-testid="input-referral-code"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {referralCode && (
+                <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                  <p className="text-sm text-green-400">
+                    You were referred by a friend! You'll both earn commission rewards.
+                  </p>
+                </div>
+              )}
               <Button
                 type="submit"
                 disabled={isLoading}
