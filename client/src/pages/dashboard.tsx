@@ -1,24 +1,37 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Flame, User, Phone } from "lucide-react";
+import { Flame, User, Phone, Cpu, TrendingUp, MessageCircle, Sparkles } from "lucide-react";
+import { SiFacebook, SiWhatsapp, SiTelegram } from "react-icons/si";
 import { FloatingCoins } from "@/components/floating-coins";
 import { MiningButton } from "@/components/mining-button";
 import { StatsCards } from "@/components/stats-cards";
 import { BottomNav } from "@/components/bottom-nav";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { MINING_MACHINES_DATA } from "@shared/schema";
+
+const NEWS_UPDATES = [
+  { id: 1, title: "New M10 Machine Available!", description: "Earn up to 10,000 PKR daily with our premium miner.", date: "Today" },
+  { id: 2, title: "Referral Bonus Increased", description: "Get 10% from Level 1 and 4% from Level 2 referrals.", date: "Yesterday" },
+  { id: 3, title: "Faster Withdrawals", description: "All withdrawals now processed within 24 hours.", date: "Jan 8" },
+];
 
 export default function Dashboard() {
   const { user, login } = useAuth();
   const { toast } = useToast();
   const [miningEndTime, setMiningEndTime] = useState<Date | null>(null);
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
+  const [newsIndex, setNewsIndex] = useState(0);
 
   const { data: miningSession, isLoading: sessionLoading, refetch: refetchSession } = useQuery<any>({
     queryKey: ["/api/mining/session", user?.id],
     enabled: !!user?.id,
-    refetchInterval: 60000, // Refetch every minute to stay synced
+    refetchInterval: 60000,
   });
 
   const { data: userData } = useQuery<any>({
@@ -26,15 +39,22 @@ export default function Dashboard() {
     enabled: !!user?.id,
   });
 
+  const { data: userMachines = [] } = useQuery<any[]>({
+    queryKey: ["/api/machines/owned", user?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/machines/owned/${user?.id}`);
+      if (!res.ok) throw new Error("Failed to fetch machines");
+      return res.json();
+    },
+    enabled: !!user?.id,
+  });
+
   useEffect(() => {
     if (miningSession?.endsAt && miningSession?.serverTime) {
-      // Calculate time offset between server and client
       const serverNow = new Date(miningSession.serverTime).getTime();
       const clientNow = Date.now();
       const offset = serverNow - clientNow;
       setServerTimeOffset(offset);
-      
-      // Use the server's endsAt timestamp directly
       setMiningEndTime(new Date(miningSession.endsAt));
     } else {
       setMiningEndTime(null);
@@ -46,6 +66,13 @@ export default function Dashboard() {
       login(userData);
     }
   }, [userData, login]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNewsIndex((prev) => (prev + 1) % NEWS_UPDATES.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const startMiningMutation = useMutation({
     mutationFn: async () => {
@@ -93,14 +120,31 @@ export default function Dashboard() {
   });
 
   const isMining = !!miningSession && !miningSession.claimed;
-  const isLoading =
-    sessionLoading ||
-    startMiningMutation.isPending ||
-    claimRewardMutation.isPending;
+  const isLoading = sessionLoading || startMiningMutation.isPending || claimRewardMutation.isPending;
+
+  const machinesWithData = userMachines.map((um: any) => {
+    const machineData = MINING_MACHINES_DATA.find(m => m.id === um.machineId);
+    const purchaseDate = new Date(um.purchasedAt);
+    const durationDays = machineData?.duration || 60;
+    const endDate = new Date(purchaseDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const totalDuration = endDate.getTime() - purchaseDate.getTime();
+    const elapsed = now.getTime() - purchaseDate.getTime();
+    const progressPercent = Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
+    const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)));
+
+    return {
+      ...um,
+      machineData,
+      progressPercent,
+      daysRemaining,
+      isActive: daysRemaining > 0,
+    };
+  });
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-background to-blue-950/10 pb-20">
-      <header className="flex items-center justify-center gap-2 py-4 border-b border-border/50">
+    <div className="min-h-screen bg-gradient-to-b from-background via-background to-blue-950/10 pb-24 overflow-y-auto">
+      <header className="flex items-center justify-center gap-2 py-4 border-b border-border/50 sticky top-0 bg-background/95 backdrop-blur z-50">
         <Flame className="w-8 h-8 text-amber-400" />
         <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-amber-400 bg-clip-text text-transparent">
           CloudFire
@@ -109,7 +153,7 @@ export default function Dashboard() {
 
       <FloatingCoins />
 
-      <main className="px-4 py-6 space-y-8 max-w-lg mx-auto">
+      <main className="px-4 py-6 space-y-6 max-w-lg mx-auto">
         <div className="flex items-center gap-3 p-4 rounded-lg bg-card/50 border border-border/50">
           <div className="p-2 rounded-full bg-gradient-to-br from-blue-500 to-amber-500">
             <User className="w-6 h-6 text-white" />
@@ -132,7 +176,7 @@ export default function Dashboard() {
           totalMiners={userData?.totalMiners ?? user?.totalMiners ?? 0}
         />
 
-        <div className="flex justify-center py-8">
+        <div className="flex justify-center py-6">
           <MiningButton
             isMining={isMining}
             endTime={miningEndTime}
@@ -144,11 +188,154 @@ export default function Dashboard() {
           />
         </div>
 
-        <div className="text-center space-y-2">
-          <h2 className="text-lg font-semibold text-foreground">How it works</h2>
-          <p className="text-sm text-muted-foreground">
-            Press the mining button to start a 24-hour session. After completion,
-            claim your rewards! Rent more machines to increase your daily profits.
+        {machinesWithData.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Cpu className="w-5 h-5 text-blue-400" />
+              <h2 className="text-lg font-semibold">Active Machines</h2>
+              <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                {machinesWithData.filter(m => m.isActive).length} Running
+              </Badge>
+            </div>
+
+            <div className="space-y-3">
+              {machinesWithData.map((machine: any) => (
+                <Card key={machine.id} className="bg-gradient-to-br from-blue-500/5 to-amber-500/5 border-blue-500/20 overflow-visible">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                            <Cpu className="w-5 h-5 text-white" />
+                          </div>
+                          {machine.isActive && (
+                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-semibold">{machine.machineData?.name || "Unknown"}</div>
+                          <div className="text-xs text-muted-foreground">
+                            Level {machine.machineData?.level || 1}
+                          </div>
+                        </div>
+                      </div>
+                      <Badge className={machine.isActive ? "bg-green-500/20 text-green-400 border-green-500/30" : "bg-red-500/20 text-red-400 border-red-500/30"}>
+                        {machine.isActive ? "Running" : "Expired"}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <div className="flex items-center gap-1 text-amber-400">
+                        <TrendingUp className="w-4 h-4" />
+                        <span className="font-medium">{machine.machineData?.dailyProfit || 0} PKR/day</span>
+                      </div>
+                      <span className="text-muted-foreground">{machine.daysRemaining} days left</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Progress value={machine.progressPercent} className="h-2" />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Contract Progress</span>
+                        <span>{Math.round(machine.progressPercent)}%</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {machinesWithData.length === 0 && (
+          <Card className="bg-gradient-to-br from-blue-500/5 to-amber-500/5 border-blue-500/20">
+            <CardContent className="p-6 text-center">
+              <Cpu className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+              <h3 className="font-semibold mb-1">No Active Machines</h3>
+              <p className="text-sm text-muted-foreground">
+                Rent mining machines to increase your daily earnings!
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-amber-400" />
+            <h2 className="text-lg font-semibold">What's New</h2>
+          </div>
+
+          <Card className="bg-gradient-to-r from-amber-500/10 to-blue-500/10 border-amber-500/20 overflow-hidden">
+            <CardContent className="p-4">
+              <div className="transition-all duration-500">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold text-sm">{NEWS_UPDATES[newsIndex].title}</span>
+                      <Badge variant="outline" className="text-xs">{NEWS_UPDATES[newsIndex].date}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{NEWS_UPDATES[newsIndex].description}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-center gap-1 mt-3">
+                {NEWS_UPDATES.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setNewsIndex(i)}
+                    className={`w-2 h-2 rounded-full transition-colors ${i === newsIndex ? 'bg-amber-400' : 'bg-muted'}`}
+                    data-testid={`button-news-dot-${i}`}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-blue-400" />
+            <h2 className="text-lg font-semibold">Customer Support</h2>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <Button
+              variant="outline"
+              className="flex flex-col items-center gap-2 h-auto py-4 bg-green-500/10 border-green-500/30 hover:bg-green-500/20"
+              onClick={() => window.open("https://wa.me/923001234567", "_blank")}
+              data-testid="button-support-whatsapp"
+            >
+              <SiWhatsapp className="w-6 h-6 text-green-500" />
+              <span className="text-xs">WhatsApp</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="flex flex-col items-center gap-2 h-auto py-4 bg-blue-500/10 border-blue-500/30 hover:bg-blue-500/20"
+              onClick={() => window.open("https://facebook.com/cloudfire", "_blank")}
+              data-testid="button-support-facebook"
+            >
+              <SiFacebook className="w-6 h-6 text-blue-500" />
+              <span className="text-xs">Facebook</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              className="flex flex-col items-center gap-2 h-auto py-4 bg-sky-500/10 border-sky-500/30 hover:bg-sky-500/20"
+              onClick={() => window.open("https://t.me/cloudfire", "_blank")}
+              data-testid="button-support-telegram"
+            >
+              <SiTelegram className="w-6 h-6 text-sky-500" />
+              <span className="text-xs">Telegram</span>
+            </Button>
+          </div>
+        </div>
+
+        <div className="text-center space-y-2 pt-4">
+          <p className="text-xs text-muted-foreground">
+            Press the mining button to start earning. Rent more machines to increase your daily profits!
           </p>
         </div>
       </main>
