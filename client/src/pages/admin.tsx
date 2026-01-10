@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Flame, Users, ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp } from "lucide-react";
+import { Flame, Users, ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp, Sun, Moon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,21 @@ export default function Admin() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [balanceInput, setBalanceInput] = useState<Record<string, string>>({});
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      return document.documentElement.classList.contains("dark");
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("admin-theme", isDarkMode ? "dark" : "light");
+  }, [isDarkMode]);
 
   // Check if user is admin - if not, show access denied
   if (!user?.isAdmin) {
@@ -136,11 +151,22 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background via-background to-blue-950/10">
-      <header className="flex items-center justify-center gap-2 py-4 border-b border-border/50">
-        <Flame className="w-8 h-8 text-amber-400" />
-        <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-amber-400 bg-clip-text text-transparent">
-          Admin Portal
-        </h1>
+      <header className="flex items-center justify-between px-4 py-4 border-b border-border/50">
+        <div className="w-10" />
+        <div className="flex items-center gap-2">
+          <Flame className="w-8 h-8 text-amber-400" />
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-amber-400 bg-clip-text text-transparent">
+            Admin Portal
+          </h1>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsDarkMode(!isDarkMode)}
+          data-testid="button-theme-toggle"
+        >
+          {isDarkMode ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5 text-blue-400" />}
+        </Button>
       </header>
 
       <main className="px-4 py-6 max-w-4xl mx-auto space-y-6">
