@@ -160,7 +160,7 @@ export default function Team() {
                     <h4 className="text-sm font-medium text-muted-foreground mb-2">Level 1 (10% commission)</h4>
                     <div className="space-y-2">
                       {referrals?.level1?.map((ref: any) => (
-                        <div key={ref.id} className="flex items-center justify-between p-3 rounded-lg bg-background/50">
+                        <div key={ref.id} className="flex items-center justify-between p-3 rounded-lg bg-background/50" data-testid={`referral-level1-${ref.id}`}>
                           <span className="font-medium">{ref.username}</span>
                           <span className="text-sm text-green-400">Active</span>
                         </div>
@@ -173,7 +173,7 @@ export default function Team() {
                     <h4 className="text-sm font-medium text-muted-foreground mb-2">Level 2 (4% commission)</h4>
                     <div className="space-y-2">
                       {referrals?.level2?.map((ref: any) => (
-                        <div key={ref.id} className="flex items-center justify-between p-3 rounded-lg bg-background/50">
+                        <div key={ref.id} className="flex items-center justify-between p-3 rounded-lg bg-background/50" data-testid={`referral-level2-${ref.id}`}>
                           <span className="font-medium">{ref.username}</span>
                           <span className="text-sm text-blue-400">Active</span>
                         </div>

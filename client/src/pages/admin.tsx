@@ -94,15 +94,15 @@ export default function Admin() {
       <main className="px-4 py-6 max-w-4xl mx-auto">
         <Tabs defaultValue="users" className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="users" className="gap-2">
+            <TabsTrigger value="users" className="gap-2" data-testid="tab-users">
               <Users className="w-4 h-4" />
               Users
             </TabsTrigger>
-            <TabsTrigger value="deposits" className="gap-2">
+            <TabsTrigger value="deposits" className="gap-2" data-testid="tab-deposits">
               <ArrowDownLeft className="w-4 h-4" />
               Deposits
             </TabsTrigger>
-            <TabsTrigger value="withdrawals" className="gap-2">
+            <TabsTrigger value="withdrawals" className="gap-2" data-testid="tab-withdrawals">
               <ArrowUpRight className="w-4 h-4" />
               Withdrawals
             </TabsTrigger>
