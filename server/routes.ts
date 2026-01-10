@@ -110,9 +110,13 @@ export async function registerRoutes(
   app.get("/api/admin/stats", async (req, res) => {
     try {
       const users = await storage.getAllUsers();
+      const deposits = await storage.getAllDeposits();
       const totalUsers = users.length;
       const totalBalance = users.reduce((sum, u) => sum + (u.balance || 0), 0);
-      res.json({ totalUsers, totalBalance });
+      const totalDeposits = deposits
+        .filter(d => d.status === "approved")
+        .reduce((sum, d) => sum + (d.amount || 0), 0);
+      res.json({ totalUsers, totalBalance, totalDeposits });
     } catch (error: any) {
       res.status(500).json({ message: error.message || "Server error" });
     }

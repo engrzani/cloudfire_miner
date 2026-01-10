@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Flame, User, Wallet, Cpu, Gift, LogOut, CreditCard } from "lucide-react";
+import { Flame, User, Wallet, Cpu, Gift, LogOut, CreditCard, Shield } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BottomNav } from "@/components/bottom-nav";
@@ -124,6 +124,15 @@ export default function Profile() {
             >
               <Gift className="w-5 h-5" />
               Refer & Earn
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-3 border-purple-500/30 text-purple-400 hover:bg-purple-500/10"
+              onClick={() => setLocation("/admin-portal")}
+              data-testid="button-goto-admin"
+            >
+              <Shield className="w-5 h-5" />
+              Admin Panel
             </Button>
           </CardContent>
         </Card>

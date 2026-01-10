@@ -16,7 +16,7 @@ export default function Admin() {
   const { toast } = useToast();
   const [balanceInput, setBalanceInput] = useState<Record<string, string>>({});
 
-  const { data: stats } = useQuery<{ totalUsers: number; totalBalance: number }>({
+  const { data: stats } = useQuery<{ totalUsers: number; totalBalance: number; totalDeposits: number }>({
     queryKey: ["/api/admin/stats"],
   });
 
@@ -106,7 +106,7 @@ export default function Admin() {
       </header>
 
       <main className="px-4 py-6 max-w-4xl mx-auto space-y-6">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -117,6 +117,22 @@ export default function Admin() {
                   <p className="text-sm text-muted-foreground">Total Users</p>
                   <p className="text-2xl font-bold text-blue-400" data-testid="text-total-users">
                     {stats?.totalUsers ?? 0}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-500/20">
+                  <ArrowDownLeft className="w-5 h-5 text-green-400" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Deposits</p>
+                  <p className="text-2xl font-bold text-green-400" data-testid="text-total-deposits">
+                    {(stats?.totalDeposits ?? 0).toLocaleString()} PKR
                   </p>
                 </div>
               </div>
