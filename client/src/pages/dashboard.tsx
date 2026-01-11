@@ -19,11 +19,16 @@ import { MINING_MACHINES_DATA } from "@shared/schema";
 export default function Dashboard() {
   const { user, login } = useAuth();
   const { toast } = useToast();
-  const [miningEndTime, setMiningEndTime] = useState<Date | null>(null);
+  const [nextClaimTime, setNextClaimTime] = useState<Date | null>(null);
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
 
-  const { data: miningSession, isLoading: sessionLoading, refetch: refetchSession } = useQuery<any>({
-    queryKey: ["/api/mining/session", user?.id],
+  const { data: miningStatus, isLoading: statusLoading, refetch: refetchStatus } = useQuery<any>({
+    queryKey: ["/api/mining/status", user?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/mining/status/${user?.id}`);
+      if (!res.ok) throw new Error("Failed to fetch mining status");
+      return res.json();
+    },
     enabled: !!user?.id,
     refetchInterval: 60000,
   });
@@ -44,16 +49,17 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    if (miningSession?.endsAt && miningSession?.serverTime) {
-      const serverNow = new Date(miningSession.serverTime).getTime();
+    if (miningStatus?.serverTime) {
+      const serverNow = new Date(miningStatus.serverTime).getTime();
       const clientNow = Date.now();
-      const offset = serverNow - clientNow;
-      setServerTimeOffset(offset);
-      setMiningEndTime(new Date(miningSession.endsAt));
-    } else {
-      setMiningEndTime(null);
+      setServerTimeOffset(serverNow - clientNow);
     }
-  }, [miningSession]);
+    if (miningStatus?.nextClaimTime) {
+      setNextClaimTime(new Date(miningStatus.nextClaimTime));
+    } else {
+      setNextClaimTime(null);
+    }
+  }, [miningStatus]);
 
   useEffect(() => {
     if (userData) {
@@ -61,40 +67,17 @@ export default function Dashboard() {
     }
   }, [userData, login]);
 
-  const startMiningMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/mining/start", { userId: user?.id });
-      return await res.json();
-    },
-    onSuccess: (data) => {
-      setMiningEndTime(new Date(data.endsAt));
-      queryClient.invalidateQueries({ queryKey: ["/api/mining/session", user?.id] });
-      toast({
-        title: "Mining started!",
-        description: "Your 24-hour mining session has begun.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to start mining",
-        description: error.message || "Please try again",
-        variant: "destructive",
-      });
-    },
-  });
-
   const claimRewardMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/mining/claim", { userId: user?.id });
       return await res.json();
     },
     onSuccess: (data) => {
-      setMiningEndTime(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/mining/session", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/mining/status", user?.id] });
       queryClient.invalidateQueries({ queryKey: ["/api/users", user?.id] });
       toast({
         title: "Reward claimed!",
-        description: `You earned $${data.reward} from mining!`,
+        description: `You earned $${data.reward.toFixed(2)} from ${data.machinesClaimed} machine(s)!`,
       });
     },
     onError: (error: any) => {
@@ -106,8 +89,9 @@ export default function Dashboard() {
     },
   });
 
-  const isMining = !!miningSession && !miningSession.claimed;
-  const isLoading = sessionLoading || startMiningMutation.isPending || claimRewardMutation.isPending;
+  const hasClaimable = miningStatus?.claimableMachines > 0;
+  const hasMachines = miningStatus?.totalMachines > 0;
+  const isLoading = statusLoading || claimRewardMutation.isPending;
 
   const machinesWithData = userMachines.map((um: any) => {
     const machineData = MINING_MACHINES_DATA.find(m => m.id === um.machineId);
@@ -165,12 +149,14 @@ export default function Dashboard() {
 
         <div className="flex justify-center py-6">
           <MiningButton
-            isMining={isMining}
-            endTime={miningEndTime}
+            hasMachines={hasMachines}
+            hasClaimable={hasClaimable}
+            claimableReward={miningStatus?.claimableReward || 0}
+            claimableMachines={miningStatus?.claimableMachines || 0}
+            nextClaimTime={nextClaimTime}
             serverTimeOffset={serverTimeOffset}
-            onStartMining={() => startMiningMutation.mutate()}
             onClaimReward={() => claimRewardMutation.mutate()}
-            onTimerExpired={() => refetchSession()}
+            onTimerExpired={() => refetchStatus()}
             isLoading={isLoading}
           />
         </div>

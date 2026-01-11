@@ -228,6 +228,110 @@ export async function registerRoutes(
         return res.status(400).json({ message: "User ID required" });
       }
 
+      const userMachinesData = await storage.getUserMachines(userId);
+      if (userMachinesData.length === 0) {
+        return res.status(400).json({ message: "No machines to claim from. Rent a machine first!" });
+      }
+
+      const now = new Date();
+      const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+      let totalReward = 0;
+      let claimedCount = 0;
+      let nextClaimTime: Date | null = null;
+
+      for (const um of userMachinesData) {
+        const machine = MINING_MACHINES_DATA.find(m => m.id === um.machineId);
+        if (!machine) continue;
+
+        const lastClaimed = um.lastClaimedAt ? new Date(um.lastClaimedAt) : null;
+        const timeSinceLastClaim = lastClaimed ? now.getTime() - lastClaimed.getTime() : Infinity;
+
+        if (timeSinceLastClaim >= TWENTY_FOUR_HOURS) {
+          const dailyProfit = parseFloat(String(machine.dailyProfit));
+          totalReward += dailyProfit;
+          await storage.updateMachineLastClaimed(um.id, now);
+          claimedCount++;
+        } else if (lastClaimed) {
+          const machineNextClaim = new Date(lastClaimed.getTime() + TWENTY_FOUR_HOURS);
+          if (!nextClaimTime || machineNextClaim < nextClaimTime) {
+            nextClaimTime = machineNextClaim;
+          }
+        }
+      }
+
+      if (claimedCount === 0) {
+        const remainingMs = nextClaimTime ? nextClaimTime.getTime() - now.getTime() : 0;
+        const remainingHours = Math.ceil(remainingMs / (1000 * 60 * 60));
+        return res.status(400).json({
+          message: `No machines ready to claim. Next claim in ${remainingHours}h.`,
+          remainingMs,
+          nextClaimTime
+        });
+      }
+
+      const user = await storage.getUser(userId);
+      if (user) {
+        const userBalance = parseFloat(String(user.balance));
+        await storage.updateUserBalance(userId, userBalance + totalReward);
+      }
+
+      res.json({ reward: totalReward, claimed: true, machinesClaimed: claimedCount });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
+  // Mining: Get claimable machines status
+  app.get("/api/mining/status/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const userMachinesData = await storage.getUserMachines(userId);
+      
+      const now = new Date();
+      const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+      let claimableReward = 0;
+      let claimableMachines = 0;
+      let nextClaimTime: Date | null = null;
+
+      for (const um of userMachinesData) {
+        const machine = MINING_MACHINES_DATA.find(m => m.id === um.machineId);
+        if (!machine) continue;
+
+        const lastClaimed = um.lastClaimedAt ? new Date(um.lastClaimedAt) : null;
+        const timeSinceLastClaim = lastClaimed ? now.getTime() - lastClaimed.getTime() : Infinity;
+
+        if (timeSinceLastClaim >= TWENTY_FOUR_HOURS) {
+          const dailyProfit = parseFloat(String(machine.dailyProfit));
+          claimableReward += dailyProfit;
+          claimableMachines++;
+        } else if (lastClaimed) {
+          const machineNextClaim = new Date(lastClaimed.getTime() + TWENTY_FOUR_HOURS);
+          if (!nextClaimTime || machineNextClaim < nextClaimTime) {
+            nextClaimTime = machineNextClaim;
+          }
+        }
+      }
+
+      res.json({
+        totalMachines: userMachinesData.length,
+        claimableMachines,
+        claimableReward,
+        nextClaimTime,
+        serverTime: now
+      });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
+  // Legacy mining session route (kept for compatibility)
+  app.post("/api/mining/claim-legacy", async (req, res) => {
+    try {
+      const { userId } = req.body;
+      if (!userId) {
+        return res.status(400).json({ message: "User ID required" });
+      }
+
       const session = await storage.getActiveMiningSession(userId);
       if (!session) {
         return res.status(400).json({ message: "No active mining session" });

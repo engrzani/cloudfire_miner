@@ -36,6 +36,7 @@ export interface IStorage {
 
   getUserMachines(userId: string): Promise<UserMachine[]>;
   addUserMachine(data: InsertUserMachine): Promise<UserMachine>;
+  updateMachineLastClaimed(machineId: string, claimedAt: Date): Promise<UserMachine | undefined>;
 
   getActiveMiningSession(userId: string): Promise<MiningSession | undefined>;
   createMiningSession(userId: string, endsAt: Date): Promise<MiningSession>;
@@ -139,6 +140,15 @@ export class DatabaseStorage implements IStorage {
     const [machine] = await db
       .insert(userMachines)
       .values(data)
+      .returning();
+    return machine;
+  }
+
+  async updateMachineLastClaimed(machineId: string, claimedAt: Date): Promise<UserMachine | undefined> {
+    const [machine] = await db
+      .update(userMachines)
+      .set({ lastClaimedAt: claimedAt })
+      .where(eq(userMachines.id, machineId))
       .returning();
     return machine;
   }
