@@ -57,7 +57,7 @@ export interface IStorage {
 
   getReferrals(userId: string): Promise<User[]>;
   getLevel2Referrals(userId: string): Promise<User[]>;
-  createReferralCommission(userId: string, fromUserId: string, depositId: string, level: number, amount: number): Promise<ReferralCommission>;
+  createReferralCommission(userId: string, fromUserId: string, level: number, amount: number, sourceType?: string, depositId?: string): Promise<ReferralCommission>;
   getUserCommissions(userId: string): Promise<ReferralCommission[]>;
   getCommissionFromUser(userId: string, fromUserId: string): Promise<number>;
   markRebatePaid(userId: string): Promise<User | undefined>;
@@ -299,10 +299,10 @@ export class DatabaseStorage implements IStorage {
     return level2Users;
   }
 
-  async createReferralCommission(userId: string, fromUserId: string, depositId: string, level: number, amount: number): Promise<ReferralCommission> {
+  async createReferralCommission(userId: string, fromUserId: string, level: number, amount: number, sourceType: string = "daily_claim", depositId?: string): Promise<ReferralCommission> {
     const [commission] = await db
       .insert(referralCommissions)
-      .values({ userId, fromUserId, depositId, level, amount })
+      .values({ userId, fromUserId, depositId: depositId || null, sourceType, level, amount: String(amount) })
       .returning();
     return commission;
   }

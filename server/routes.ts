@@ -335,6 +335,7 @@ export async function registerRoutes(
             const referrer1Balance = parseFloat(String(referrer1.balance || 0));
             await storage.updateUserBalance(referrer1.id, referrer1Balance + commission1);
             await storage.updateUserReferralEarnings(referrer1.id, commission1);
+            await storage.createReferralCommission(referrer1.id, userId, 1, commission1, "daily_claim");
             
             // Level 2: 4% of daily earnings
             if (referrer1.referredById) {
@@ -344,6 +345,7 @@ export async function registerRoutes(
                 const referrer2Balance = parseFloat(String(referrer2.balance || 0));
                 await storage.updateUserBalance(referrer2.id, referrer2Balance + commission2);
                 await storage.updateUserReferralEarnings(referrer2.id, commission2);
+                await storage.createReferralCommission(referrer2.id, userId, 2, commission2, "daily_claim");
               }
             }
           }
