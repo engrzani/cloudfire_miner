@@ -502,6 +502,50 @@ export async function registerRoutes(
     }
   });
 
+  // Withdrawals: Request commission withdrawal (minimum $30)
+  app.post("/api/withdrawals/commission", async (req, res) => {
+    try {
+      const { userId, amount, method, accountHolderName, accountNumber } = req.body;
+      if (!userId || !amount || !method || !accountHolderName || !accountNumber) {
+        return res.status(400).json({ message: "All fields required" });
+      }
+
+      if (amount < 30) {
+        return res.status(400).json({ message: "Minimum commission withdrawal is $30" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Check if user has at least one active machine
+      const machineCount = await storage.getUserMachineCount(userId);
+      if (machineCount === 0) {
+        return res.status(400).json({ message: "Please activate a machine to enable withdrawals." });
+      }
+
+      const commissionBalance = parseFloat(String(user.totalReferralEarnings));
+      if (commissionBalance < amount) {
+        return res.status(400).json({ message: "Insufficient commission balance" });
+      }
+
+      // Calculate 10% tax
+      const taxAmount = amount * 0.10;
+      const netAmount = amount - taxAmount;
+      // Calculate PKR payout using withdrawal exchange rate
+      const pkrAmount = netAmount * EXCHANGE_RATES.WITHDRAW_RATE;
+
+      // Deduct from commission balance
+      await storage.updateUserReferralEarnings(userId, -amount);
+      const withdrawal = await storage.createWithdrawal(userId, amount, taxAmount, netAmount, pkrAmount, method, accountHolderName, accountNumber);
+
+      res.json(withdrawal);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Server error" });
+    }
+  });
+
   // Admin: Get all withdrawals
   app.get("/api/admin/withdrawals", async (req, res) => {
     try {

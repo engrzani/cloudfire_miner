@@ -124,9 +124,10 @@ export class DatabaseStorage implements IStorage {
   async updateUserReferralEarnings(id: string, amount: number): Promise<User | undefined> {
     const user = await this.getUser(id);
     if (!user) return undefined;
+    const currentEarnings = parseFloat(String(user.totalReferralEarnings || 0));
     const [updated] = await db
       .update(users)
-      .set({ totalReferralEarnings: (user.totalReferralEarnings || 0) + amount })
+      .set({ totalReferralEarnings: currentEarnings + amount })
       .where(eq(users.id, id))
       .returning();
     return updated || undefined;

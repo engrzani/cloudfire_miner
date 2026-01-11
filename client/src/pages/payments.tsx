@@ -66,6 +66,7 @@ export default function Payments() {
   const [uploading, setUploading] = useState(false);
   const [depositDialogOpen, setDepositDialogOpen] = useState(false);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
+  const [commissionWithdrawDialogOpen, setCommissionWithdrawDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [withdrawHistoryDialogOpen, setWithdrawHistoryDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -128,6 +129,21 @@ export default function Payments() {
   const watchedDepositAmount = depositForm.watch("amount");
   const pkrRequired = watchedDepositAmount * EXCHANGE_RATES.DEPOSIT_RATE;
 
+  const commissionWithdrawForm = useForm<WithdrawFormData>({
+    resolver: zodResolver(withdrawalFormSchema),
+    defaultValues: {
+      amount: 0,
+      method: "easypaisa",
+      accountHolderName: "",
+      accountNumber: "",
+    },
+  });
+
+  const watchedCommissionAmount = commissionWithdrawForm.watch("amount");
+  const commissionTaxAmount = watchedCommissionAmount * 0.10;
+  const commissionNetAmount = watchedCommissionAmount - commissionTaxAmount;
+  const commissionPkrPayout = commissionNetAmount * EXCHANGE_RATES.WITHDRAW_RATE;
+
   const withdrawMutation = useMutation({
     mutationFn: async (data: WithdrawFormData) => {
       const res = await apiRequest("POST", "/api/withdrawals/request", {
@@ -152,6 +168,36 @@ export default function Payments() {
     onError: (error: any) => {
       toast({
         title: "Withdrawal failed",
+        description: error.message || "Could not process withdrawal",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const commissionWithdrawMutation = useMutation({
+    mutationFn: async (data: WithdrawFormData) => {
+      const res = await apiRequest("POST", "/api/withdrawals/commission", {
+        userId: user?.id,
+        amount: data.amount,
+        method: data.method,
+        accountHolderName: data.accountHolderName,
+        accountNumber: data.accountNumber,
+      });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/withdrawals", user?.id] });
+      commissionWithdrawForm.reset();
+      setCommissionWithdrawDialogOpen(false);
+      toast({
+        title: "Commission withdrawal requested!",
+        description: "Your request is being processed within 24 hours.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Commission withdrawal failed",
         description: error.message || "Could not process withdrawal",
         variant: "destructive",
       });
@@ -273,11 +319,16 @@ export default function Payments() {
                   ${balance.toLocaleString()}
                 </p>
               </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3">
+              <div 
+                className="bg-white/10 backdrop-blur-sm rounded-xl p-3 cursor-pointer hover:bg-white/20 transition-colors"
+                onClick={() => setCommissionWithdrawDialogOpen(true)}
+                data-testid="button-commission-withdraw"
+              >
                 <p className="text-xs opacity-70 mb-1">Commission balance</p>
                 <p className="text-xl font-semibold" data-testid="text-commission-balance">
                   ${commissionBalance.toLocaleString()}
                 </p>
+                <p className="text-xs opacity-70 mt-1">Tap to withdraw</p>
               </div>
             </div>
           </div>
@@ -697,6 +748,164 @@ export default function Payments() {
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={commissionWithdrawDialogOpen} onOpenChange={setCommissionWithdrawDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-amber-400" />
+              Withdraw Commission
+            </DialogTitle>
+          </DialogHeader>
+          
+          {commissionBalance < 30 ? (
+            <div className="p-6 text-center space-y-4">
+              <div className="w-16 h-16 mx-auto rounded-full bg-amber-500/20 flex items-center justify-center">
+                <AlertCircle className="w-8 h-8 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">Minimum $30 Required</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Your commission balance is ${commissionBalance.toLocaleString()}. 
+                  You need at least $30 in commission to withdraw.
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Invite more friends to earn referral commissions!
+              </p>
+            </div>
+          ) : !hasActiveMachine ? (
+            <p className="text-sm text-center text-amber-500 py-4">
+              Please activate a machine to enable withdrawals.
+            </p>
+          ) : (
+            <Form {...commissionWithdrawForm}>
+              <form
+                onSubmit={commissionWithdrawForm.handleSubmit((data) => commissionWithdrawMutation.mutate(data))}
+                className="space-y-4"
+              >
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                  <p className="text-sm text-amber-400">
+                    Commission Balance: ${commissionBalance.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Minimum withdrawal: $30
+                  </p>
+                </div>
+
+                <FormField
+                  control={commissionWithdrawForm.control}
+                  name="amount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Amount (USD)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={30}
+                          max={commissionBalance}
+                          placeholder="Enter amount (min $30)"
+                          data-testid="input-commission-withdraw-amount"
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {watchedCommissionAmount >= 30 && (
+                  <div className="p-3 rounded-lg bg-background/50 text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tax (10%):</span>
+                      <span className="text-red-400">-${commissionTaxAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Net Amount:</span>
+                      <span className="text-green-400">${commissionNetAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold pt-2 border-t border-border/50">
+                      <span>PKR Payout:</span>
+                      <span className="text-amber-400">Rs. {commissionPkrPayout.toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
+
+                <FormField
+                  control={commissionWithdrawForm.control}
+                  name="method"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Payment Method</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-commission-payment-method">
+                            <SelectValue placeholder="Select method" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="easypaisa">EasyPaisa</SelectItem>
+                          <SelectItem value="jazzcash">JazzCash</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={commissionWithdrawForm.control}
+                  name="accountHolderName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Account Holder Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter account holder name"
+                          data-testid="input-commission-account-name"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={commissionWithdrawForm.control}
+                  name="accountNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Account Number</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter account number"
+                          data-testid="input-commission-account-number"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={commissionWithdrawMutation.isPending || watchedCommissionAmount < 30 || watchedCommissionAmount > commissionBalance}
+                  data-testid="button-commission-withdraw-submit"
+                >
+                  {commissionWithdrawMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : null}
+                  Request Commission Withdrawal
+                </Button>
+              </form>
+            </Form>
+          )}
         </DialogContent>
       </Dialog>
 
