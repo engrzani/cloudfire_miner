@@ -1,15 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Flame, Users, ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp, Sun, Moon, Search } from "lucide-react";
+import { Flame, Users, ArrowDownLeft, ArrowUpRight, Wallet, TrendingUp, Sun, Moon, Search, Megaphone, Plus, Trash2, Image, Sparkles, Bell, Gift, Zap, Star } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Announcement } from "@shared/schema";
 
 export default function Admin() {
   const { user } = useAuth();
@@ -86,6 +91,116 @@ export default function Admin() {
     },
     enabled: !!user?.id && user?.isAdmin,
   });
+
+  const { data: announcements = [], isLoading: announcementsLoading } = useQuery<Announcement[]>({
+    queryKey: ["/api/admin/announcements", user?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/announcements?adminId=${user?.id}`);
+      if (!res.ok) throw new Error("Failed to fetch announcements");
+      return res.json();
+    },
+    enabled: !!user?.id && user?.isAdmin,
+  });
+
+  const [announcementForm, setAnnouncementForm] = useState({
+    title: "",
+    description: "",
+    iconType: "sparkles",
+    isActive: true,
+    priority: 0,
+  });
+  const [announcementImage, setAnnouncementImage] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const createAnnouncementMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const res = await fetch("/api/admin/announcements", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Failed to create announcement");
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/announcements"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/announcements"] });
+      setAnnouncementForm({ title: "", description: "", iconType: "sparkles", isActive: true, priority: 0 });
+      setAnnouncementImage(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      toast({ title: "Announcement created!" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteAnnouncementMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/admin/announcements/${id}?adminId=${user?.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete announcement");
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/announcements"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/announcements"] });
+      toast({ title: "Announcement deleted!" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateAnnouncementMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: { isActive?: boolean; priority?: number } }) => {
+      const formData = new FormData();
+      formData.append("adminId", user?.id || "");
+      if (data.isActive !== undefined) formData.append("isActive", String(data.isActive));
+      if (data.priority !== undefined) formData.append("priority", String(data.priority));
+      const res = await fetch(`/api/admin/announcements/${id}`, {
+        method: "PATCH",
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Failed to update announcement");
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/announcements"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/announcements"] });
+      toast({ title: "Announcement updated!" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleCreateAnnouncement = () => {
+    if (!announcementForm.title || !announcementForm.description) {
+      toast({ title: "Missing fields", description: "Title and description are required", variant: "destructive" });
+      return;
+    }
+    const formData = new FormData();
+    formData.append("adminId", user?.id || "");
+    formData.append("title", announcementForm.title);
+    formData.append("description", announcementForm.description);
+    formData.append("iconType", announcementForm.iconType);
+    formData.append("isActive", String(announcementForm.isActive));
+    formData.append("priority", String(announcementForm.priority));
+    if (announcementImage) {
+      formData.append("image", announcementImage);
+    }
+    createAnnouncementMutation.mutate(formData);
+  };
+
+  const getIconComponent = (iconType: string) => {
+    switch (iconType) {
+      case "bell": return Bell;
+      case "gift": return Gift;
+      case "zap": return Zap;
+      case "star": return Star;
+      case "megaphone": return Megaphone;
+      default: return Sparkles;
+    }
+  };
 
   const updateBalanceMutation = useMutation({
     mutationFn: async ({ userId, balance }: { userId: string; balance: number }) => {
@@ -223,18 +338,22 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="withdrawals" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="users" className="gap-2" data-testid="tab-users">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="users" className="gap-1 text-xs sm:text-sm" data-testid="tab-users">
               <Users className="w-4 h-4" />
-              Users
+              <span className="hidden sm:inline">Users</span>
             </TabsTrigger>
-            <TabsTrigger value="deposits" className="gap-2" data-testid="tab-deposits">
+            <TabsTrigger value="deposits" className="gap-1 text-xs sm:text-sm" data-testid="tab-deposits">
               <ArrowDownLeft className="w-4 h-4" />
-              Deposits
+              <span className="hidden sm:inline">Deposits</span>
             </TabsTrigger>
-            <TabsTrigger value="withdrawals" className="gap-2" data-testid="tab-withdrawals">
+            <TabsTrigger value="withdrawals" className="gap-1 text-xs sm:text-sm" data-testid="tab-withdrawals">
               <ArrowUpRight className="w-4 h-4" />
-              Withdrawals
+              <span className="hidden sm:inline">Withdrawals</span>
+            </TabsTrigger>
+            <TabsTrigger value="announcements" className="gap-1 text-xs sm:text-sm" data-testid="tab-announcements">
+              <Megaphone className="w-4 h-4" />
+              <span className="hidden sm:inline">News</span>
             </TabsTrigger>
           </TabsList>
 
@@ -515,6 +634,185 @@ export default function Admin() {
                     })}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="announcements">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Megaphone className="w-5 h-5 text-amber-400" />
+                  Manage Announcements
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <Card className="bg-gradient-to-br from-amber-500/5 to-blue-500/5 border-amber-500/20">
+                  <CardHeader>
+                    <CardTitle className="text-base">Create New Announcement</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="ann-title">Title</Label>
+                      <Input
+                        id="ann-title"
+                        placeholder="Enter announcement title..."
+                        value={announcementForm.title}
+                        onChange={(e) => setAnnouncementForm(prev => ({ ...prev, title: e.target.value }))}
+                        data-testid="input-announcement-title"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="ann-desc">Description</Label>
+                      <Textarea
+                        id="ann-desc"
+                        placeholder="Enter announcement description..."
+                        value={announcementForm.description}
+                        onChange={(e) => setAnnouncementForm(prev => ({ ...prev, description: e.target.value }))}
+                        rows={3}
+                        data-testid="input-announcement-description"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Icon Style</Label>
+                        <Select
+                          value={announcementForm.iconType}
+                          onValueChange={(value) => setAnnouncementForm(prev => ({ ...prev, iconType: value }))}
+                        >
+                          <SelectTrigger data-testid="select-announcement-icon">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sparkles">Sparkles</SelectItem>
+                            <SelectItem value="bell">Bell</SelectItem>
+                            <SelectItem value="gift">Gift</SelectItem>
+                            <SelectItem value="zap">Zap</SelectItem>
+                            <SelectItem value="star">Star</SelectItem>
+                            <SelectItem value="megaphone">Megaphone</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="ann-priority">Priority (Higher = First)</Label>
+                        <Input
+                          id="ann-priority"
+                          type="number"
+                          value={announcementForm.priority}
+                          onChange={(e) => setAnnouncementForm(prev => ({ ...prev, priority: parseInt(e.target.value) || 0 }))}
+                          data-testid="input-announcement-priority"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Banner Image (Optional)</Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => setAnnouncementImage(e.target.files?.[0] || null)}
+                          className="flex-1"
+                          data-testid="input-announcement-image"
+                        />
+                        {announcementImage && (
+                          <Badge variant="outline" className="text-green-400 border-green-500/30">
+                            <Image className="w-3 h-3 mr-1" />
+                            {announcementImage.name.substring(0, 20)}...
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="ann-active"
+                        checked={announcementForm.isActive}
+                        onCheckedChange={(checked) => setAnnouncementForm(prev => ({ ...prev, isActive: checked }))}
+                        data-testid="switch-announcement-active"
+                      />
+                      <Label htmlFor="ann-active">Active (visible to users)</Label>
+                    </div>
+                    <Button
+                      onClick={handleCreateAnnouncement}
+                      disabled={createAnnouncementMutation.isPending}
+                      className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"
+                      data-testid="button-create-announcement"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      {createAnnouncementMutation.isPending ? "Creating..." : "Create Announcement"}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <div className="space-y-3">
+                  <h3 className="font-semibold">Existing Announcements ({announcements.length})</h3>
+                  {announcementsLoading ? (
+                    <div className="space-y-3">
+                      <Skeleton className="h-24 w-full" />
+                      <Skeleton className="h-24 w-full" />
+                    </div>
+                  ) : announcements.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No announcements yet. Create one above!
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {announcements.map((ann) => {
+                        const IconComp = getIconComponent(ann.iconType);
+                        return (
+                          <Card key={ann.id} className={`${ann.isActive ? 'border-green-500/30' : 'border-red-500/30 opacity-60'}`}>
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-start gap-3 flex-1">
+                                  <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                                    <IconComp className="w-5 h-5 text-amber-400" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <span className="font-semibold">{ann.title}</span>
+                                      <Badge variant="outline" className="text-xs">
+                                        Priority: {ann.priority}
+                                      </Badge>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">{ann.description}</p>
+                                    {ann.imageUrl && (
+                                      <img src={ann.imageUrl} alt="" className="mt-2 h-16 rounded object-cover" />
+                                    )}
+                                    <div className="flex items-center gap-4 mt-3 pt-2 border-t border-border/50">
+                                      <div className="flex items-center gap-2">
+                                        <Switch
+                                          checked={ann.isActive}
+                                          onCheckedChange={(checked) => 
+                                            updateAnnouncementMutation.mutate({ id: ann.id, data: { isActive: checked } })
+                                          }
+                                          disabled={updateAnnouncementMutation.isPending}
+                                          data-testid={`switch-announcement-active-${ann.id}`}
+                                        />
+                                        <Label className="text-xs">{ann.isActive ? "Active" : "Inactive"}</Label>
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        Created: {new Date(ann.createdAt).toLocaleString()}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                                <Button
+                                  size="icon"
+                                  variant="destructive"
+                                  onClick={() => deleteAnnouncementMutation.mutate(ann.id)}
+                                  disabled={deleteAnnouncementMutation.isPending}
+                                  data-testid={`button-delete-announcement-${ann.id}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </TabsContent>

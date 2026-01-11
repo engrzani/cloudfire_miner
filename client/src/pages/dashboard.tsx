@@ -6,6 +6,7 @@ import { FloatingCoins } from "@/components/floating-coins";
 import { MiningButton } from "@/components/mining-button";
 import { StatsCards } from "@/components/stats-cards";
 import { BottomNav } from "@/components/bottom-nav";
+import { AnnouncementsCarousel } from "@/components/announcements-carousel";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -15,18 +16,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { MINING_MACHINES_DATA } from "@shared/schema";
 
-const NEWS_UPDATES = [
-  { id: 1, title: "New M10 Machine Available!", description: "Earn up to 10,000 PKR daily with our premium miner.", date: "Today" },
-  { id: 2, title: "Referral Bonus Increased", description: "Get 10% from Level 1 and 4% from Level 2 referrals.", date: "Yesterday" },
-  { id: 3, title: "Faster Withdrawals", description: "All withdrawals now processed within 24 hours.", date: "Jan 8" },
-];
-
 export default function Dashboard() {
   const { user, login } = useAuth();
   const { toast } = useToast();
   const [miningEndTime, setMiningEndTime] = useState<Date | null>(null);
   const [serverTimeOffset, setServerTimeOffset] = useState<number>(0);
-  const [newsIndex, setNewsIndex] = useState(0);
 
   const { data: miningSession, isLoading: sessionLoading, refetch: refetchSession } = useQuery<any>({
     queryKey: ["/api/mining/session", user?.id],
@@ -66,13 +60,6 @@ export default function Dashboard() {
       login(userData);
     }
   }, [userData, login]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setNewsIndex((prev) => (prev + 1) % NEWS_UPDATES.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
 
   const startMiningMutation = useMutation({
     mutationFn: async () => {
@@ -260,38 +247,21 @@ export default function Dashboard() {
 
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-amber-400" />
-            <h2 className="text-lg font-semibold">What's New</h2>
+            <Sparkles className="w-5 h-5 text-amber-400" style={{ filter: "drop-shadow(0 0 6px rgba(251, 191, 36, 0.6))" }} />
+            <h2 
+              className="text-lg font-bold"
+              style={{
+                background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              What's New
+            </h2>
           </div>
 
-          <Card className="bg-gradient-to-r from-amber-500/10 to-blue-500/10 border-amber-500/20 overflow-hidden">
-            <CardContent className="p-4">
-              <div className="transition-all duration-500">
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-4 h-4 text-amber-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold text-sm">{NEWS_UPDATES[newsIndex].title}</span>
-                      <Badge variant="outline" className="text-xs">{NEWS_UPDATES[newsIndex].date}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">{NEWS_UPDATES[newsIndex].description}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex justify-center gap-1 mt-3">
-                {NEWS_UPDATES.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setNewsIndex(i)}
-                    className={`w-2 h-2 rounded-full transition-colors ${i === newsIndex ? 'bg-amber-400' : 'bg-muted'}`}
-                    data-testid={`button-news-dot-${i}`}
-                  />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <AnnouncementsCarousel />
         </div>
 
         <div className="space-y-3">
