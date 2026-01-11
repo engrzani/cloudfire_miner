@@ -480,6 +480,18 @@ export async function registerRoutes(
           await storage.updateUserBalance(referrer1.id, referrer1Balance + commission1);
           await storage.updateUserReferralEarnings(referrer1.id, commission1);
 
+          // One-time rebate bonus for L1 referrer on first machine rental
+          if (!user.rebatePaidToReferrer && machine.rebate > 0) {
+            const rebateAmount = machine.rebate;
+            // commission1 was already added above, now just add rebate
+            const referrer1AfterCommission = await storage.getUser(referrer1.id);
+            if (referrer1AfterCommission) {
+              const currentBalance = parseFloat(String(referrer1AfterCommission.balance));
+              await storage.updateUserBalance(referrer1.id, currentBalance + rebateAmount);
+            }
+            await storage.markRebatePaid(userId);
+          }
+
           if (referrer1.referredById) {
             const referrer2 = await storage.getUser(referrer1.referredById);
             if (referrer2) {
@@ -742,6 +754,18 @@ export async function registerRoutes(
               await storage.updateUserBalance(referrer1.id, referrer1Balance + commission1);
               await storage.updateUserReferralEarnings(referrer1.id, commission1);
               await storage.createReferralCommission(referrer1.id, user.id, deposit.id, 1, commission1);
+
+              // One-time rebate bonus for L1 referrer on first deposit (5% of deposit amount)
+              if (!user.rebatePaidToReferrer) {
+                const rebateAmount = depositAmount * 0.05;
+                // commission1 was already added above, now just add rebate
+                const referrer1AfterCommission = await storage.getUser(referrer1.id);
+                if (referrer1AfterCommission) {
+                  const currentBalance = parseFloat(String(referrer1AfterCommission.balance));
+                  await storage.updateUserBalance(referrer1.id, currentBalance + rebateAmount);
+                }
+                await storage.markRebatePaid(user.id);
+              }
 
               if (referrer1.referredById) {
                 const referrer2 = await storage.getUser(referrer1.referredById);
