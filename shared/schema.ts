@@ -60,6 +60,7 @@ export const userMachines = pgTable("user_machines", {
   userId: varchar("user_id").notNull(),
   machineId: varchar("machine_id").notNull(),
   purchasedAt: timestamp("purchased_at").notNull().defaultNow(),
+  lastClaimedAt: timestamp("last_claimed_at"),
 });
 
 export const insertUserMachineSchema = createInsertSchema(userMachines).pick({
