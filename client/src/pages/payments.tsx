@@ -50,7 +50,7 @@ import { BottomNav } from "@/components/bottom-nav";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { withdrawalFormSchema, depositFormSchema } from "@shared/schema";
+import { withdrawalFormSchema, depositFormSchema, EXCHANGE_RATES } from "@shared/schema";
 import type { z } from "zod";
 
 const PAYMENT_NUMBER = "03425809569";
@@ -112,10 +112,6 @@ export default function Payments() {
     },
   });
 
-  const watchedAmount = withdrawForm.watch("amount");
-  const taxAmount = watchedAmount * 0.10;
-  const netAmount = watchedAmount - taxAmount;
-
   const depositForm = useForm<DepositFormData>({
     resolver: zodResolver(depositFormSchema),
     defaultValues: {
@@ -123,6 +119,14 @@ export default function Payments() {
       transactionId: "",
     },
   });
+
+  const watchedAmount = withdrawForm.watch("amount");
+  const taxAmount = watchedAmount * 0.10;
+  const netAmount = watchedAmount - taxAmount;
+  const pkrPayout = netAmount * EXCHANGE_RATES.WITHDRAW_RATE;
+
+  const watchedDepositAmount = depositForm.watch("amount");
+  const pkrRequired = watchedDepositAmount * EXCHANGE_RATES.DEPOSIT_RATE;
 
   const withdrawMutation = useMutation({
     mutationFn: async (data: WithdrawFormData) => {
@@ -258,7 +262,7 @@ export default function Payments() {
             <div className="mb-6">
               <p className="text-sm opacity-70 mb-1">Total assets</p>
               <p className="text-4xl font-bold" data-testid="text-total-assets">
-                {totalAssets.toLocaleString()} <span className="text-lg font-normal">PKR</span>
+                ${totalAssets.toLocaleString()}
               </p>
             </div>
 
@@ -266,13 +270,13 @@ export default function Payments() {
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3">
                 <p className="text-xs opacity-70 mb-1">Available balance</p>
                 <p className="text-xl font-semibold" data-testid="text-available-balance">
-                  {balance.toLocaleString()} PKR
+                  ${balance.toLocaleString()}
                 </p>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3">
                 <p className="text-xs opacity-70 mb-1">Commission balance</p>
                 <p className="text-xl font-semibold" data-testid="text-commission-balance">
-                  {commissionBalance.toLocaleString()} PKR
+                  ${commissionBalance.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -337,7 +341,7 @@ export default function Payments() {
                     <span className="text-sm">{item.label}</span>
                   </div>
                   <span className={`font-semibold ${item.color}`}>
-                    {item.value.toLocaleString()} PKR
+                    ${item.value.toLocaleString()}
                   </span>
                 </div>
               ))}
@@ -381,17 +385,25 @@ export default function Payments() {
                   name="amount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Amount (PKR)</FormLabel>
+                      <FormLabel>Amount (USD)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
-                          placeholder="Enter deposit amount"
+                          step="0.01"
+                          placeholder="Enter deposit amount in USD"
                           data-testid="input-deposit-amount"
                           {...field}
                           onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                         />
                       </FormControl>
                       <FormMessage />
+                      {watchedDepositAmount > 0 && (
+                        <div className="mt-2 p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-sm">
+                          <p className="text-muted-foreground">Send via EasyPaisa/JazzCash:</p>
+                          <p className="font-bold text-blue-400">{pkrRequired.toLocaleString()} PKR</p>
+                          <p className="text-xs text-muted-foreground mt-1">Rate: 1 USD = {EXCHANGE_RATES.DEPOSIT_RATE} PKR</p>
+                        </div>
+                      )}
                     </FormItem>
                   )}
                 />
@@ -489,7 +501,7 @@ export default function Payments() {
               >
                 <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
                   <p className="text-sm text-muted-foreground">Available Balance</p>
-                  <p className="text-xl font-bold text-amber-400">{balance.toLocaleString()} PKR</p>
+                  <p className="text-xl font-bold text-amber-400">${balance.toLocaleString()}</p>
                 </div>
 
                 <FormField
@@ -497,11 +509,12 @@ export default function Payments() {
                   name="amount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Amount (PKR)</FormLabel>
+                      <FormLabel>Amount (USD)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
-                          placeholder="Enter amount"
+                          step="0.01"
+                          placeholder="Enter amount in USD"
                           data-testid="input-withdraw-amount"
                           {...field}
                           onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
@@ -512,15 +525,22 @@ export default function Payments() {
                   )}
                 />
 
-                {watchedAmount >= 500 && (
-                  <div className="p-3 rounded-lg bg-background/50 space-y-1">
+                {watchedAmount >= 2 && (
+                  <div className="p-3 rounded-lg bg-background/50 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Tax (10%):</span>
-                      <span className="text-red-400">-{taxAmount.toLocaleString()} PKR</span>
+                      <span className="text-red-400">-${taxAmount.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm font-semibold">
-                      <span className="text-muted-foreground">You'll receive:</span>
-                      <span className="text-green-400">{netAmount.toLocaleString()} PKR</span>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Net USD:</span>
+                      <span className="text-amber-400">${netAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="pt-2 border-t border-border/50">
+                      <div className="flex justify-between text-sm font-semibold">
+                        <span className="text-muted-foreground">You'll receive (PKR):</span>
+                        <span className="text-green-400">{pkrPayout.toLocaleString()} PKR</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Rate: 1 USD = {EXCHANGE_RATES.WITHDRAW_RATE} PKR</p>
                     </div>
                   </div>
                 )}
@@ -585,7 +605,7 @@ export default function Payments() {
 
                 <Button
                   type="submit"
-                  disabled={withdrawMutation.isPending || balance < 500}
+                  disabled={withdrawMutation.isPending || balance < 2}
                   className="w-full bg-gradient-to-r from-amber-500 to-orange-600"
                   data-testid="button-withdraw"
                 >
@@ -596,7 +616,7 @@ export default function Payments() {
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">
-                  Processed within 24 hours. 10% tax applies.
+                  Processed within 24 hours. 10% tax applies. Payout in PKR.
                 </p>
               </form>
             </Form>
@@ -623,7 +643,7 @@ export default function Payments() {
                   className="flex items-center justify-between p-3 rounded-lg bg-background/50"
                 >
                   <div>
-                    <p className="font-medium text-green-400">+{d.amount?.toLocaleString()} PKR</p>
+                    <p className="font-medium text-green-400">+${d.amount?.toLocaleString()}</p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(d.createdAt).toLocaleDateString()}
                     </p>
@@ -661,7 +681,7 @@ export default function Payments() {
                   className="flex items-center justify-between p-3 rounded-lg bg-background/50"
                 >
                   <div>
-                    <p className="font-medium text-red-400">-{w.amount?.toLocaleString()} PKR</p>
+                    <p className="font-medium text-red-400">-${w.amount?.toLocaleString()}</p>
                     <p className="text-xs text-muted-foreground">
                       {new Date(w.createdAt).toLocaleDateString()}
                     </p>

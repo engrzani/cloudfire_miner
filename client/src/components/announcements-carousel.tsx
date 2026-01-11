@@ -16,7 +16,7 @@ const ICON_MAP: Record<string, any> = {
 const FALLBACK_ANNOUNCEMENTS = [
   { id: "1", title: "Welcome to CloudFire!", description: "Start mining today and earn daily profits.", iconType: "sparkles" },
   { id: "2", title: "Referral Bonus Active", description: "Invite friends and earn 10% from their deposits.", iconType: "gift" },
-  { id: "3", title: "New Machines Available", description: "Check out M10 with up to 10,000 PKR daily profit.", iconType: "zap" },
+  { id: "3", title: "New Machines Available", description: "Check out M10 with up to $31.75 daily profit.", iconType: "zap" },
 ];
 
 export function AnnouncementsCarousel() {

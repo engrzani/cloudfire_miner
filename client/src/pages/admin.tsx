@@ -313,7 +313,7 @@ export default function Admin() {
                 <div>
                   <p className="text-sm text-muted-foreground">Total Deposits</p>
                   <p className="text-2xl font-bold text-green-400" data-testid="text-total-deposits">
-                    {(stats?.totalDeposits ?? 0).toLocaleString()} PKR
+                    ${(stats?.totalDeposits ?? 0).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -329,7 +329,7 @@ export default function Admin() {
                 <div>
                   <p className="text-sm text-muted-foreground">Global Balance</p>
                   <p className="text-2xl font-bold text-amber-400" data-testid="text-global-balance">
-                    {(stats?.totalBalance ?? 0).toLocaleString()} PKR
+                    ${(stats?.totalBalance ?? 0).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -430,7 +430,7 @@ export default function Admin() {
                           <div className="font-medium">{u.username}</div>
                           <div className="text-sm text-muted-foreground">
                             {u.phoneNumber && <span className="mr-2">Phone: {u.phoneNumber}</span>}
-                            Balance: <span className="text-amber-400">{u.balance?.toLocaleString() || 0} PKR</span>
+                            Balance: <span className="text-amber-400">${u.balance?.toLocaleString() || 0}</span>
                             {" | "}Miners: <span className="text-blue-400">{u.totalMiners || 0}</span>
                             {u.isAdmin && (
                               <Badge className="ml-2 bg-purple-500/20 text-purple-400">Admin</Badge>
@@ -497,7 +497,7 @@ export default function Admin() {
                           <div className="flex items-center justify-between">
                             <div>
                               <div className="font-medium">{depositUser?.username || "Unknown User"}</div>
-                              <div className="text-lg font-bold text-green-400">{d.amount?.toLocaleString()} PKR</div>
+                              <div className="text-lg font-bold text-green-400">${d.amount?.toLocaleString()}</div>
                             </div>
                             {getStatusBadge(d.status)}
                           </div>
@@ -589,15 +589,15 @@ export default function Admin() {
                           <div className="grid grid-cols-2 gap-4 p-3 rounded-lg bg-background/30">
                             <div>
                               <div className="text-xs text-muted-foreground">Requested Amount</div>
-                              <div className="text-lg font-bold text-amber-400">{w.amount?.toLocaleString()} PKR</div>
+                              <div className="text-lg font-bold text-amber-400">${w.amount?.toLocaleString()}</div>
                             </div>
                             <div>
                               <div className="text-xs text-muted-foreground">Tax Deducted (10%)</div>
-                              <div className="text-lg font-bold text-red-400">-{(w.taxAmount || w.amount * 0.1)?.toLocaleString()} PKR</div>
+                              <div className="text-lg font-bold text-red-400">-${(w.taxAmount || w.amount * 0.1)?.toLocaleString()}</div>
                             </div>
                             <div className="col-span-2">
                               <div className="text-xs text-muted-foreground">Net Amount (Payable)</div>
-                              <div className="text-xl font-bold text-green-400">{(w.netAmount || w.amount * 0.9)?.toLocaleString()} PKR</div>
+                              <div className="text-xl font-bold text-green-400">${(w.netAmount || w.amount * 0.9)?.toLocaleString()}</div>
                             </div>
                           </div>
 

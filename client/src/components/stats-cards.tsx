@@ -17,7 +17,7 @@ export function StatsCards({ totalAssets, totalMiners }: StatsCardsProps) {
           <div>
             <p className="text-xs text-muted-foreground">Total Assets</p>
             <p className="text-xl md:text-2xl font-bold text-amber-400 tabular-nums" data-testid="text-total-assets">
-              {totalAssets.toLocaleString()} <span className="text-sm font-normal">PKR</span>
+              ${totalAssets.toLocaleString()}
             </p>
           </div>
         </div>

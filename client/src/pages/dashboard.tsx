@@ -94,7 +94,7 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["/api/users", user?.id] });
       toast({
         title: "Reward claimed!",
-        description: `You earned ${data.reward} PKR from mining!`,
+        description: `You earned $${data.reward} from mining!`,
       });
     },
     onError: (error: any) => {
@@ -214,7 +214,7 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between text-sm mb-2">
                       <div className="flex items-center gap-1 text-amber-400">
                         <TrendingUp className="w-4 h-4" />
-                        <span className="font-medium">{machine.machineData?.dailyProfit || 0} PKR/day</span>
+                        <span className="font-medium">${machine.machineData?.dailyProfit || 0}/day</span>
                       </div>
                       <span className="text-muted-foreground">{machine.daysRemaining} days left</span>
                     </div>

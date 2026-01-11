@@ -58,7 +58,7 @@ export default function Profile() {
                   <Skeleton className="h-6 w-20" />
                 ) : (
                   <div className="font-bold text-amber-400" data-testid="text-profile-balance">
-                    {(displayUser?.balance || 0).toLocaleString()} PKR
+                    ${(displayUser?.balance || 0).toLocaleString()}
                   </div>
                 )}
               </div>
@@ -95,7 +95,7 @@ export default function Profile() {
                 <Skeleton className="h-6 w-24" />
               ) : (
                 <div className="font-bold text-green-400" data-testid="text-profile-referral">
-                  {(displayUser?.totalReferralEarnings || 0).toLocaleString()} PKR
+                  ${(displayUser?.totalReferralEarnings || 0).toLocaleString()}
                 </div>
               )}
             </div>

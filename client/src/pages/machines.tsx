@@ -76,7 +76,7 @@ export default function Machines() {
             <p className="text-sm text-muted-foreground">
               Balance:{" "}
               <span className="text-amber-400 font-semibold" data-testid="text-balance">
-                {balance.toLocaleString()} PKR
+                ${balance.toLocaleString()}
               </span>
             </p>
           </div>

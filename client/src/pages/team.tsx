@@ -117,7 +117,7 @@ export default function Team() {
             <div className="text-2xl font-bold text-amber-400" data-testid="text-referral-earnings">
               {totalReferralEarnings.toLocaleString()}
             </div>
-            <div className="text-xs text-muted-foreground">PKR Earned</div>
+            <div className="text-xs text-muted-foreground">USD Earned</div>
           </Card>
           <Card className="p-4 text-center">
             <div className="text-2xl font-bold text-blue-400" data-testid="text-level1-count">

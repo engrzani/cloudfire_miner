@@ -93,20 +93,20 @@ export function MachineCard({
           </div>
 
           <p className="text-foreground font-semibold text-lg">
-            {machine.price.toLocaleString()} PKR
+            ${machine.price.toLocaleString()}
           </p>
 
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-sm">
             <div className="flex items-center gap-1 text-green-400">
               <TrendingUp className="w-3.5 h-3.5" />
               <span className="font-medium" data-testid={`text-daily-${machine.id}`}>
-                +{machine.dailyProfit.toLocaleString()} PKR/day
+                +${machine.dailyProfit.toLocaleString()}/day
               </span>
             </div>
             <div className="flex items-center gap-1 text-amber-400">
               <Coins className="w-3.5 h-3.5" />
               <span className="font-medium" data-testid={`text-total-${machine.id}`}>
-                Total: {totalProfit.toLocaleString()} PKR
+                Total: ${totalProfit.toLocaleString()}
               </span>
             </div>
             <div className="flex items-center gap-1 text-muted-foreground col-span-2">
