@@ -323,8 +323,31 @@ export async function registerRoutes(
 
       const user = await storage.getUser(userId);
       if (user) {
-        const userBalance = parseFloat(String(user.balance));
+        const userBalance = parseFloat(String(user.balance || 0));
         await storage.updateUserBalance(userId, userBalance + totalReward);
+        
+        // Distribute daily commissions to referrers based on claimed earnings
+        if (totalReward > 0 && user.referredById) {
+          // Level 1: 10% of daily earnings
+          const commission1 = totalReward * 0.10;
+          const referrer1 = await storage.getUser(user.referredById);
+          if (referrer1) {
+            const referrer1Balance = parseFloat(String(referrer1.balance || 0));
+            await storage.updateUserBalance(referrer1.id, referrer1Balance + commission1);
+            await storage.updateUserReferralEarnings(referrer1.id, commission1);
+            
+            // Level 2: 4% of daily earnings
+            if (referrer1.referredById) {
+              const referrer2 = await storage.getUser(referrer1.referredById);
+              if (referrer2) {
+                const commission2 = totalReward * 0.04;
+                const referrer2Balance = parseFloat(String(referrer2.balance || 0));
+                await storage.updateUserBalance(referrer2.id, referrer2Balance + commission2);
+                await storage.updateUserReferralEarnings(referrer2.id, commission2);
+              }
+            }
+          }
+        }
       }
 
       res.json({ reward: totalReward, claimed: true, machinesClaimed: claimedCount });
@@ -471,36 +494,17 @@ export async function registerRoutes(
       await storage.updateUserMiners(userId, user.totalMiners + 1);
       await storage.addUserMachine({ userId, machineId });
 
-      // Process referral commissions on machine rental (investment)
-      if (user.referredById) {
-        const commission1 = machinePrice * 0.10;
+      // One-time fixed rebate to L1 referrer on first machine rental
+      if (user.referredById && !user.rebatePaidToReferrer && machine.rebate > 0) {
         const referrer1 = await storage.getUser(user.referredById);
         if (referrer1) {
           const referrer1Balance = parseFloat(String(referrer1.balance || 0));
-          
-          // Check if one-time rebate bonus should be applied
-          let rebateAmount = 0;
-          if (!user.rebatePaidToReferrer && machine.rebate > 0) {
-            rebateAmount = machine.rebate;
-            await storage.markRebatePaid(userId);
-          }
-          
-          // Credit commission + rebate in one update to avoid race conditions
-          const totalCredit = commission1 + rebateAmount;
-          await storage.updateUserBalance(referrer1.id, referrer1Balance + totalCredit);
-          await storage.updateUserReferralEarnings(referrer1.id, commission1);
-
-          if (referrer1.referredById) {
-            const referrer2 = await storage.getUser(referrer1.referredById);
-            if (referrer2) {
-              const commission2 = machinePrice * 0.04;
-              const referrer2Balance = parseFloat(String(referrer2.balance || 0));
-              await storage.updateUserBalance(referrer2.id, referrer2Balance + commission2);
-              await storage.updateUserReferralEarnings(referrer2.id, commission2);
-            }
-          }
+          const rebateAmount = machine.rebate;
+          await storage.updateUserBalance(referrer1.id, referrer1Balance + rebateAmount);
+          await storage.markRebatePaid(userId);
         }
       }
+      // Note: Daily commissions (10% L1, 4% L2) are distributed when user claims mining rewards
 
       const updatedUser = await storage.getUser(userId);
       const { password: _, ...safeUser } = updatedUser!;
@@ -743,39 +747,7 @@ export async function registerRoutes(
           const userBalance = parseFloat(String(user.balance || 0));
           const depositAmount = parseFloat(String(deposit.amount || 0));
           await storage.updateUserBalance(user.id, userBalance + depositAmount);
-          
-          // Process referral commissions on deposit approval
-          if (user.referredById) {
-            const commission1 = depositAmount * 0.10;
-            const referrer1 = await storage.getUser(user.referredById);
-            if (referrer1) {
-              const referrer1Balance = parseFloat(String(referrer1.balance || 0));
-              
-              // Check if one-time rebate bonus should be applied (5% of deposit amount)
-              let rebateAmount = 0;
-              if (!user.rebatePaidToReferrer) {
-                rebateAmount = depositAmount * 0.05;
-                await storage.markRebatePaid(user.id);
-              }
-              
-              // Credit commission + rebate in one update to avoid race conditions
-              const totalCredit = commission1 + rebateAmount;
-              await storage.updateUserBalance(referrer1.id, referrer1Balance + totalCredit);
-              await storage.updateUserReferralEarnings(referrer1.id, commission1);
-              await storage.createReferralCommission(referrer1.id, user.id, deposit.id, 1, commission1);
-
-              if (referrer1.referredById) {
-                const referrer2 = await storage.getUser(referrer1.referredById);
-                if (referrer2) {
-                  const commission2 = depositAmount * 0.04;
-                  const referrer2Balance = parseFloat(String(referrer2.balance || 0));
-                  await storage.updateUserBalance(referrer2.id, referrer2Balance + commission2);
-                  await storage.updateUserReferralEarnings(referrer2.id, commission2);
-                  await storage.createReferralCommission(referrer2.id, user.id, deposit.id, 2, commission2);
-                }
-              }
-            }
-          }
+          // No commission on deposits - commissions are based on daily mining earnings only
         }
       }
 
