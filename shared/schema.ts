@@ -77,14 +77,24 @@ export type UserMachine = typeof userMachines.$inferSelect;
 export const miningSessions = pgTable("mining_sessions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
-  startedAt: timestamp("started_at").notNull().defaultNow(),
-  endsAt: timestamp("ends_at").notNull(),
-  claimed: boolean("claimed").notNull().default(false),
+  userMachineId: varchar("user_machine_id").notNull(),
+  machineId: varchar("machine_id").notNull(),
+  machineName: text("machine_name").notNull(),
+  dailyProfit: numeric("daily_profit", { precision: 10, scale: 2 }).notNull(),
+  startTime: timestamp("start_time").notNull().defaultNow(),
+  endTime: timestamp("end_time").notNull(),
+  status: text("status").notNull().default("active"),
+  earnedAmount: numeric("earned_amount", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const insertMiningSessionSchema = createInsertSchema(miningSessions).pick({
   userId: true,
-  endsAt: true,
+  userMachineId: true,
+  machineId: true,
+  machineName: true,
+  dailyProfit: true,
+  endTime: true,
 });
 
 export type InsertMiningSession = z.infer<typeof insertMiningSessionSchema>;
