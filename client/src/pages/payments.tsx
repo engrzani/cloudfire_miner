@@ -260,7 +260,9 @@ export default function Payments() {
   };
 
   const balance = userData?.balance ?? user?.balance ?? 0;
-  const commissionBalance = userData?.totalReferralEarnings ?? 0;
+  // Commission Balance is the dedicated field for L1/L2 daily mining commissions
+  // (NOT totalReferralEarnings which includes both rebates and commissions)
+  const commissionBalance = parseFloat(String(userData?.commissionBalance ?? 0));
   const totalAssets = balance + commissionBalance;
 
   const calculateDailyMinerIncome = () => {

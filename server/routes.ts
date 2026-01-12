@@ -568,7 +568,8 @@ export async function registerRoutes(
       );
 
       // One-time fixed rebate to L1 referrer for THIS machine purchase
-      // This rebate is paid once per machine, added to referrer's Available Balance
+      // This rebate is paid once per machine, added to referrer's AVAILABLE BALANCE only
+      // (NOT to commissionBalance or totalReferralEarnings)
       if (user.referredById && machine.rebate > 0) {
         const referrer1 = await storage.getUser(user.referredById);
         if (referrer1) {
@@ -576,10 +577,10 @@ export async function registerRoutes(
           const rebateAmount = machine.rebate;
           await storage.updateUserBalance(referrer1.id, referrer1Balance + rebateAmount);
           await storage.markMachineRebatePaid(userMachine.id);
-          // Record the rebate commission
+          // Record the rebate commission for history tracking
           await storage.createReferralCommission(referrer1.id, userId, 1, rebateAmount, "rebate");
-          // Update referrer's total earnings (just pass the increment)
-          await storage.updateUserReferralEarnings(referrer1.id, rebateAmount);
+          // NOTE: We do NOT update totalReferralEarnings or commissionBalance for rebates
+          // Rebates ONLY go to Available Balance
         }
       }
       // Note: Daily commissions (10% L1, 4% L2) are distributed when mining sessions complete
@@ -669,8 +670,9 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Please activate a machine to enable withdrawals." });
       }
 
-      const commissionBalance = parseFloat(String(user.totalReferralEarnings));
-      if (commissionBalance < amount) {
+      // Use the actual commissionBalance field (NOT totalReferralEarnings)
+      const commissionBal = parseFloat(String(user.commissionBalance || 0));
+      if (commissionBal < amount) {
         return res.status(400).json({ message: "Insufficient commission balance" });
       }
 
@@ -680,8 +682,8 @@ export async function registerRoutes(
       // Calculate PKR payout using withdrawal exchange rate
       const pkrAmount = netAmount * EXCHANGE_RATES.WITHDRAW_RATE;
 
-      // Deduct from commission balance
-      await storage.updateUserReferralEarnings(userId, -amount);
+      // Deduct from commissionBalance (NOT totalReferralEarnings)
+      await storage.updateUserCommissionBalance(userId, commissionBal - amount);
       const withdrawal = await storage.createWithdrawal(userId, amount, taxAmount, netAmount, pkrAmount, method, accountHolderName, accountNumber);
 
       res.json(withdrawal);
