@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "dist/index.cjs",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "client/dist/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/assets/(.*)",
+      "dest": "/client/dist/assets/$1"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/dist/index.cjs"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/dist/index.cjs"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
