@@ -1,12 +1,34 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "framework": null,
-  "rewrites": [
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/index.cjs"
+      "src": "dist/index.cjs",
+      "use": "@vercel/node"
     }
-  ]
+  ],
+  "routes": [
+    {
+      "src": "/assets/(.*)",
+      "dest": "/dist/public/assets/$1"
+    },
+    {
+      "src": "/icons/(.*)",
+      "dest": "/dist/public/icons/$1"
+    },
+    {
+      "src": "/manifest.json",
+      "dest": "/dist/public/manifest.json"
+    },
+    {
+      "src": "/service-worker.js",
+      "dest": "/dist/public/service-worker.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/dist/index.cjs"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }
