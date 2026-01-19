@@ -1,11 +1,12 @@
-// Vercel serverless function handler
+const { createApp } = require('../server/app.ts');
+
+let appPromise;
+
 module.exports = async (req, res) => {
-  // Import the built Express app
-  const app = require('../dist/index.cjs');
+  if (!appPromise) {
+    appPromise = createApp();
+  }
   
-  // Get the default export or the app itself
-  const handler = app.default || app;
-  
-  // Execute the Express app
-  return handler(req, res);
+  const app = await appPromise;
+  return app(req, res);
 };
